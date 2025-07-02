@@ -9,7 +9,7 @@ RUN go mod vendor
 RUN go install -v .
 
 # Build driver image
-FROM ubuntu:16.04
+FROM ubuntu:22.04
 
 RUN dpkg --add-architecture i386 && \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -26,7 +26,7 @@ RUN dpkg --add-architecture i386 && \
         libc6:i386 \
         libelf-dev \
 	libssl-dev \
-	module-init-tools \
+	kmod \
 	software-properties-common && \
     rm -rf /var/lib/apt/lists/*
 
