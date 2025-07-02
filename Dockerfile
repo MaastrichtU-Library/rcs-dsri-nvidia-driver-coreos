@@ -3,9 +3,10 @@ FROM nvcr.io/nvidia/cuda:12.9.1-base-ubi8 AS license
 # Build nvidia-container-runtime binary
 FROM golang:1.24.4 AS build-runtime
 
-WORKDIR /go/src/nvidia-container-runtime
+WORKDIR /go/bin/nvidia-container-runtime
 COPY nvidia-container-runtime .
-RUN go install -v nvidia-container-runtime
+RUN go mod vendor
+RUN go install -v .
 
 # Build driver image
 FROM ubuntu:16.04
