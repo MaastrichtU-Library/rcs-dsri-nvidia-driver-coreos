@@ -6,7 +6,7 @@ on:
     branches: [ main ]
     paths:
     - 'Dockerfile'
-    - '.github/workflows/publish-docker.yml'
+    - '.github/workflows/publish-docker-image.yml'
   schedule:
     # Monday at 3:00 AM UTC
     - cron: '0 3 * * 1'
@@ -29,7 +29,7 @@ jobs:
 
       - name: Generate image ID and version
         run: |
-          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/dsri-nvidia-driver
+          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/rcs-dsri-nvidia-driver-coreos
           # Change all uppercase to lowercase
           IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
           # Strip git ref prefix from version
