@@ -7,7 +7,7 @@ RUN_DIR=/run/nvidia
 PID_FILE=${RUN_DIR}/${0##*/}.pid
 DRIVER_VERSION=${DRIVER_VERSION:?"Missing DRIVER_VERSION env"}
 KERNEL_UPDATE_HOOK=/run/kernel/postinst.d/update-nvidia-driver
-KOJI_BASE_URL=https://kojipkgs.fedoraproject.org
+#KOJI_BASE_URL=https://kojipkgs.fedoraproject.org
 NUM_VGPU_DEVICES=0
 NVIDIA_MODULE_PARAMS=()
 NVIDIA_UVM_MODULE_PARAMS=()
@@ -85,7 +85,8 @@ _install_prerequisites() (
     if ! dnf -q -y install kernel-headers-${KERNEL_VERSION} > /dev/null; then
         echo "Failed to find kernel-headers-${KERNEL_VERSION} in repositories."
         echo "Trying to download kernel-headers from koji..."
-        KOJI_KERNEL_HEADERS_RPM=$KOJI_BASE_URL/packages/kernel-headers/$KERNEL_RPM_VERSION/$KERNEL_RPM_RELEASE/$KERNEL_RPM_ARCH/kernel-headers-$KERNEL_VERSION.rpm
+#        KOJI_KERNEL_HEADERS_RPM=$KOJI_BASE_URL/packages/kernel-headers/$KERNEL_RPM_VERSION/$KERNEL_RPM_RELEASE/$KERNEL_RPM_ARCH/kernel-headers-$KERNEL_VERSION.rpm
+	KOJI_KERNEL_HEADERS_RPM='https://kojihub.stream.centos.org/kojifiles/packages/kernel/5.14.0/554.el9/x86_64/kernel-headers-5.14.0-554.el9.x86_64.rpm'
         if ! dnf -q -y install $KOJI_KERNEL_HEADERS_RPM \
           --setopt=install_weak_deps=False; then
             echo "Failed to find kernel-headers-${KERNEL_VERSION} in koji."
@@ -100,7 +101,8 @@ _install_prerequisites() (
     if ! dnf -q -y install kernel-devel-${KERNEL_VERSION} > /dev/null; then
         echo "Failed to find kernel-devel-${KERNEL_VERSION} in repositories."
         echo "Trying to download kernel-devel from koji..."
-        KOJI_KERNEL_DEVEL_RPM=$KOJI_BASE_URL/packages/kernel/$KERNEL_RPM_VERSION/$KERNEL_RPM_RELEASE/$KERNEL_RPM_ARCH/kernel-devel-$KERNEL_VERSION.rpm
+#        KOJI_KERNEL_DEVEL_RPM=$KOJI_BASE_URL/packages/kernel/$KERNEL_RPM_VERSION/$KERNEL_RPM_RELEASE/$KERNEL_RPM_ARCH/kernel-devel-$KERNEL_VERSION.rpm
+        KOJI_KERNEL_DEVEL_RPM='https://kojihub.stream.centos.org/kojifiles/packages/kernel/5.14.0/554.el9/x86_64/kernel-devel-5.14.0-554.el9.x86_64.rpm'
         if ! dnf -q -y install $KOJI_KERNEL_DEVEL_RPM \
           --setopt=install_weak_deps=False; then
             echo "Can't find kernel-devel-${KERNEL_VERSION}"
@@ -116,7 +118,8 @@ _install_prerequisites() (
     if ! dnf -q -y download kernel-core-${KERNEL_VERSION} > /dev/null; then
         echo "Failed to find kernel-core-${KERNEL_VERSION} in repositories."
         echo "Trying to download kernel-core from koji..."
-        KOJI_KERNEL_CORE_RPM=$KOJI_BASE_URL/packages/kernel/$KERNEL_RPM_VERSION/$KERNEL_RPM_RELEASE/$KERNEL_RPM_ARCH/kernel-core-$KERNEL_VERSION.rpm
+#        KOJI_KERNEL_CORE_RPM=$KOJI_BASE_URL/packages/kernel/$KERNEL_RPM_VERSION/$KERNEL_RPM_RELEASE/$KERNEL_RPM_ARCH/kernel-core-$KERNEL_VERSION.rpm
+        KOJI_KERNEL_CORE_RPM='https://kojihub.stream.centos.org/kojifiles/packages/kernel/5.14.0/554.el9/x86_64/kernel-core-5.14.0-554.el9.x86_64.rpm'
         if ! dnf -q -y download $KOJI_KERNEL_CORE_RPM; then
             echo "Can't find kernel-core-${KERNEL_VERSION}"
             echo "Please try to update your kernel on the host system."
@@ -132,7 +135,8 @@ _install_prerequisites() (
     if ! dnf -q -y download kernel-modules-core-${KERNEL_VERSION} > /dev/null; then
         echo "Failed to find kernel-modules-core-${KERNEL_VERSION} in repositories."
         echo "Trying to download kernel-modules-core from koji..."
-        KOJI_KERNEL_CORE_RPM=$KOJI_BASE_URL/packages/kernel/$KERNEL_RPM_VERSION/$KERNEL_RPM_RELEASE/$KERNEL_RPM_ARCH/kernel-modules-core-$KERNEL_VERSION.rpm
+#        KOJI_KERNEL_CORE_RPM=$KOJI_BASE_URL/packages/kernel/$KERNEL_RPM_VERSION/$KERNEL_RPM_RELEASE/$KERNEL_RPM_ARCH/kernel-modules-core-$KERNEL_VERSION.rpm
+	KOJI_KERNEL_CORE_RPM='https://kojihub.stream.centos.org/kojifiles/packages/kernel/5.14.0/554.el9/x86_64/kernel-modules-core-5.14.0-554.el9.x86_64.rpm'
         if ! dnf -q -y download $KOJI_KERNEL_CORE_RPM \
           --setopt=install_weak_deps=False; then
             echo "Can't find kernel-modules-core-${KERNEL_VERSION}"
