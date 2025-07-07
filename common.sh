@@ -24,3 +24,4 @@ _gpu_direct_rdma_enabled() {
         fi
     fi
     return 1
+}
