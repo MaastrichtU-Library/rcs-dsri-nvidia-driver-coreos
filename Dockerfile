@@ -1,94 +1,145 @@
-FROM nvcr.io/nvidia/cuda:12.9.1-base-ubi8 AS license
+ARG FEDORA_VERSION=39
 
-# Build nvidia-container-runtime binary
-FROM golang:1.24.4 AS build-runtime
+# Stage 1
+FROM nvcr.io/nvidia/cuda:12.6.1-base-ubi8 AS build
 
-WORKDIR /go/bin/nvidia-container-runtime
-COPY nvidia-container-runtime .
-RUN go mod vendor
-RUN go install -v .
+ARG TARGETARCH
 
-# Build driver image
-FROM ubuntu:22.04
+SHELL ["/bin/bash", "-c"]
 
-RUN dpkg --add-architecture i386 && \
-    apt-get update && apt-get install -y --no-install-recommends \
-        apt-transport-https \
-        apt-utils \
-	bc \
-	binutils \
-        build-essential \
-        ca-certificates \
-        curl \
-	gnupg2 \
-	jq \
-        kmod \
-        libc6:i386 \
-        libelf-dev \
-	libssl-dev \
-	kmod \
-	software-properties-common && \
-    rm -rf /var/lib/apt/lists/*
+RUN dnf install -y git wget
 
-RUN echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ bionic main" > /etc/apt/sources.list && \
-    echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ bionic-updates main" >> /etc/apt/sources.list && \
-    echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ bionic-security main" >> /etc/apt/sources.list && \
-    usermod -o -u 0 -g 0 _apt
+ENV GOLANG_VERSION=1.22.7
 
-RUN curl -fsSL -o /usr/local/bin/donkey https://github.com/3XX0/donkey/releases/download/v1.1.0/donkey && \
-    curl -fsSL -o /usr/local/bin/extract-vmlinux https://raw.githubusercontent.com/torvalds/linux/master/scripts/extract-vmlinux && \
-    chmod +x /usr/local/bin/donkey /usr/local/bin/extract-vmlinux
+# download appropriate binary based on the target architecture for multi-arch builds
+RUN OS_ARCH=${TARGETARCH/x86_64/amd64} && OS_ARCH=${OS_ARCH/aarch64/arm64} && \
+    curl https://dl.google.com/go/go${GOLANG_VERSION}.linux-${OS_ARCH}.tar.gz \
+    | tar -C /usr/local -xz
 
-#ARG BASE_URL=http://us.download.nvidia.com/XFree86/Linux-x86_64
+ENV PATH=/usr/local/go/bin:$PATH
+
+WORKDIR /work
+
+RUN git clone https://github.com/NVIDIA/gpu-driver-container driver && \
+    cd driver/vgpu/src && \
+    go build -o vgpu-util && \
+    mv vgpu-util /work
+
+# Stage 2
+FROM fedora:${FEDORA_VERSION}
+
+LABEL org.opencontainers.image.source https://github.com/maastrichtu-library/dsri-nvidia-driver
+
+ARG TARGETARCH
+ENV TARGETARCH=$TARGETARCH
+
+ARG KERNEL_TYPE
+ENV KERNEL_TYPE=$KERNEL_TYPE
+
+SHELL ["/bin/bash", "-c"]
+
 ARG BASE_URL=https://us.download.nvidia.com/tesla
-ARG DRIVER_VERSION=450.80.02
+ENV BASE_URL=${BASE_URL}
+ARG DRIVER_VERSION=570.158.01
 ENV DRIVER_VERSION=$DRIVER_VERSION
 
-# Install the userspace components and copy the kernel module sources.
-RUN cd /tmp && \
-    curl -fSsl -O $BASE_URL/$DRIVER_VERSION/NVIDIA-Linux-x86_64-$DRIVER_VERSION.run && \
-    sh NVIDIA-Linux-x86_64-$DRIVER_VERSION.run -x && \
-    cd NVIDIA-Linux-x86_64-$DRIVER_VERSION* && \
-    ./nvidia-installer --silent \
-                       --no-kernel-module \
-                       --install-compat32-libs \
-                       --no-nouveau-check \
-                       --no-nvidia-modprobe \
-                       --no-rpms \
-                       --no-backup \
-                       --no-check-for-alternate-installs \
-                       --no-libglx-indirect \
-                       --no-install-libglvnd \
-                       --x-prefix=/tmp/null \
-                       --x-module-path=/tmp/null \
-                       --x-library-path=/tmp/null \
-                       --x-sysconfig-path=/tmp/null && \
-    mkdir -p /usr/src/nvidia-$DRIVER_VERSION && \
-    mv LICENSE mkprecompiled kernel /usr/src/nvidia-$DRIVER_VERSION && \
-    sed '9,${/^\(kernel\|LICENSE\)/!d}' .manifest > /usr/src/nvidia-$DRIVER_VERSION/.manifest && \
-    rm -rf /tmp/*
+# Arg to indicate if driver type is either of passthrough/baremetal or vgpu
+ARG DRIVER_TYPE=passthrough
+ENV DRIVER_TYPE=$DRIVER_TYPE
+ARG VGPU_LICENSE_SERVER_TYPE=NLS
+ENV VGPU_LICENSE_SERVER_TYPE=$VGPU_LICENSE_SERVER_TYPE
+# Enable vGPU version compability check by default
+ARG DISABLE_VGPU_VERSION_CHECK=true
+ENV DISABLE_VGPU_VERSION_CHECK=$DISABLE_VGPU_VERSION_CHECK
+# Avoid dependency of container-toolkit for driver container
+ENV NVIDIA_VISIBLE_DEVICES=void
 
-# Install and configure nvidia-container-runtime
-ENV NVIDIA_VISIBLE_DEVICES void
+# Utils, download plugin, and patch package
+RUN dnf install -y util-linux 'dnf-command(download)'
+RUN dnf install -y patch
 
-COPY --from=build-runtime /go/bin/nvidia-container-runtime /usr/bin/nvidia-container-runtime
+ADD install.sh /tmp/
 
-RUN curl -s -L https://nvidia.github.io/nvidia-container-runtime/gpgkey | apt-key add - && \
-    distribution=$(. /etc/os-release;echo $ID$VERSION_ID) && \
-    curl -s -L https://nvidia.github.io/nvidia-container-runtime/$distribution/nvidia-container-runtime.list | tee /etc/apt/sources.list.d/nvidia-container-runtime.list && \
-    apt-get update && \
-    apt-get install -y nvidia-container-runtime-hook && \
-    cd /usr && ln -s lib/x86_64-linux-gnu lib64 && cd - && \
-    sed -i 's/^#root/root/; s;@/sbin/ldconfig.real;@/run/nvidia/driver/sbin/ldconfig.real;' /etc/nvidia-container-runtime/config.toml
+RUN NVIDIA_GPGKEY_SUM=d0664fbbdb8c32356d45de36c5984617217b2d0bef41b93ccecd326ba3b80c87 && \
+    OS_ARCH=${TARGETARCH/amd64/x86_64} && OS_ARCH=${OS_ARCH/arm64/sbsa} && \
+    curl -fsSL "https://developer.download.nvidia.com/compute/cuda/repos/rhel8/$OS_ARCH/D42D0685.pub" | sed '/^Version/d' > /etc/pki/rpm-gpg/RPM-GPG-KEY-NVIDIA && \
+    echo "$NVIDIA_GPGKEY_SUM  /etc/pki/rpm-gpg/RPM-GPG-KEY-NVIDIA" | sha256sum -c --strict -
+
+RUN sh /tmp/install.sh depinstall && \
+    curl -fsSL -o /usr/local/bin/donkey https://github.com/3XX0/donkey/releases/download/v1.1.0/donkey && \
+    curl -fsSL -o /usr/local/bin/extract-vmlinux https://raw.githubusercontent.com/torvalds/linux/master/scripts/extract-vmlinux && \
+    chmod +x /usr/local/bin/donkey /usr/local/bin/extract-vmlinux && \
+    ln -s /sbin/ldconfig /sbin/ldconfig.real
+
+ADD drivers drivers/
+
+# Fetch the installer automatically for passthrough/baremetal types
+# RUN echo $BASE_URL/$DRIVER_VERSION/NVIDIA-Linux-$DRIVER_ARCH-$DRIVER_VERSION.run
+RUN if [ "$DRIVER_TYPE" != "vgpu" ]; then \
+    cd drivers && \
+    DRIVER_ARCH=${TARGETARCH/amd64/x86_64} && DRIVER_ARCH=${DRIVER_ARCH/arm64/aarch64} && \
+    curl -fSsl -O $BASE_URL/$DRIVER_VERSION/NVIDIA-Linux-$DRIVER_ARCH-$DRIVER_VERSION.run && \
+    chmod +x  NVIDIA-Linux-$DRIVER_ARCH-$DRIVER_VERSION.run; fi
+
+# ******************************************************************************
+# REMOVED FABRIC MANAGER RHEL WORK FOR NOW - HAVEN'T ATTEMPTED INCLUSION
+# ******************************************************************************
+# Install fabric-manager packages
+# RUN if [ "$DRIVER_TYPE" != "vgpu" ] && [ "$TARGETARCH" != "arm64" ]; then \
+#     versionArray=(${DRIVER_VERSION//./ }); \
+#     DRIVER_BRANCH=${versionArray[0]}; \
+#     if [ ${versionArray[0]} -ge 470 ] || ([ ${versionArray[0]} == 460 ] && [ ${versionArray[1]} -ge 91 ]); then \
+#       fmPackage=nvidia-fabric-manager-${DRIVER_VERSION}-1; \
+#     else \
+#       fmPackage=nvidia-fabricmanager-${DRIVER_BRANCH}-${DRIVER_VERSION}-1; \
+#     fi; \
+#     nscqPackage=libnvidia-nscq-${DRIVER_BRANCH}-${DRIVER_VERSION}-1; \
+#     dnf module enable -y nvidia-driver:${DRIVER_BRANCH} && \
+#     dnf install -y ${fmPackage} ${nscqPackage}; fi
 
 COPY nvidia-driver /usr/local/bin
 
+RUN chmod 755 /usr/local/bin/nvidia-driver
+
+#RUN cat /usr/local/bin/nvidia-driver
+
 WORKDIR /usr/src/nvidia-$DRIVER_VERSION
+
+COPY ocp_dtk_entrypoint /usr/local/bin
+RUN chmod +x /usr/local/bin/ocp_dtk_entrypoint
+COPY common.sh /usr/local/bin
+RUN chmod +x /usr/local/bin/common.sh
+ENV PATH="$PATH:/user/local/bin"
+
+COPY --from=build /work/vgpu-util /usr/local/bin
+
+WORKDIR /drivers
 
 ARG PUBLIC_KEY=empty
 COPY ${PUBLIC_KEY} kernel/pubkey.x509
 
-# Add NGC DL license
-COPY --from=license /NGC-DL-CONTAINER-LICENSE /licenses/NGC-DL-CONTAINER-LICENSE
+#ARG PRIVATE_KEY
+ARG KERNEL_VERSION=latest
 
-ENTRYPOINT ["nvidia-driver"]
+LABEL io.k8s.display-name="NVIDIA Driver Container"
+LABEL name="NVIDIA Driver Container"
+LABEL vendor="NVIDIA"
+LABEL version="${DRIVER_VERSION}"
+LABEL release="N/A"
+LABEL summary="Provision the NVIDIA driver through containers"
+LABEL description="See summary"
+
+# Add NGC DL license from the CUDA image
+COPY --from=build /NGC-DL-CONTAINER-LICENSE /licenses/NGC-DL-CONTAINER-LICENSE
+
+# Install / upgrade packages here that are required to resolve CVEs
+ARG CVE_UPDATES
+RUN if [ -n "${CVE_UPDATES}" ]; then \
+        yum update -y ${CVE_UPDATES} && \
+        rm -rf /var/cache/yum/*; \
+    fi
+
+# Remove cuda repository to avoid GPG errors
+RUN rm -f /etc/yum.repos.d/cuda.repo
+
+ENTRYPOINT ["nvidia-driver", "init"]
