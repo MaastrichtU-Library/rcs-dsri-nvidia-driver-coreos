@@ -12,7 +12,7 @@ on:
     # - cron: '0 3 * * 1'
 
 env:
-  IMAGE_ID: ghcr.io/${{ toLower(github.repository_owner) }}/rcs-dsri-nvidia-driver-coreos
+  IMAGE_ID: ghcr.io/${{github.repository_owner}}/rcs-dsri-nvidia-driver-coreos
   IMAGE_TAG: latest-centos10
 
 jobs:
@@ -31,7 +31,12 @@ jobs:
           registry: ghcr.io
           username: ${{github.actor}}
           password: ${{secrets.GITHUB_TOKEN}}
-
+          
+      - name: Set lowercase image ID
+        run: |
+          IMAGE_ID=$(echo '${{ env.IMAGE_ID }}' | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_ID=$IMAGE_ID" >> $GITHUB_ENV
+      
       # Cache: https://docs.docker.com/build/ci/github-actions/cache/#github-cache
       - name: Build and publish main latest Docker image
         uses: docker/build-push-action@v4
