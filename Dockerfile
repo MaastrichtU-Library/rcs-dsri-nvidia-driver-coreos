@@ -28,8 +28,6 @@ RUN git clone https://github.com/NVIDIA/gpu-driver-container driver && \
 # Stage 2
 FROM fedora:${FEDORA_VERSION}
 
-LABEL org.opencontainers.image.source https://github.com/maastrichtu-library/dsri-nvidia-driver
-
 ARG TARGETARCH
 ENV TARGETARCH=$TARGETARCH
 
