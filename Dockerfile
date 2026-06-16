@@ -1,4 +1,4 @@
-ARG FEDORA_VERSION=39
+ARG FEDORA_VERSION=42
 
 # Stage 1
 FROM nvcr.io/nvidia/cuda:13.2.1-base-ubi9 AS build
