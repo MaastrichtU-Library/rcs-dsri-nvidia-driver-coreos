@@ -1,7 +1,7 @@
 ARG FEDORA_VERSION=39
 
 # Stage 1
-FROM nvcr.io/nvidia/cuda:12.6.1-base-ubi8 AS build
+FROM nvcr.io/nvidia/cuda:13.2.1-base-ubi9 AS build
 
 ARG TARGETARCH
 
@@ -40,7 +40,7 @@ SHELL ["/bin/bash", "-c"]
 
 ARG BASE_URL=https://us.download.nvidia.com/tesla
 ENV BASE_URL=${BASE_URL}
-ARG DRIVER_VERSION=570.158.01
+ARG DRIVER_VERSION=595.71.05
 ENV DRIVER_VERSION=$DRIVER_VERSION
 
 # Arg to indicate if driver type is either of passthrough/baremetal or vgpu
