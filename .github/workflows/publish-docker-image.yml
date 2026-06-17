@@ -43,6 +43,7 @@ jobs:
         with:
           context: ./
           file: ./Dockerfile
+          no-cache: true
           pull: true
           push: true
           tags: ${{ env.IMAGE_ID }}:${{ env.IMAGE_TAG }}
