@@ -120,7 +120,7 @@ _install_prerequisites() (
         echo "Trying to download kernel-core from koji..."
 #        KOJI_KERNEL_CORE_RPM=$KOJI_BASE_URL/packages/kernel/$KERNEL_RPM_VERSION/$KERNEL_RPM_RELEASE/$KERNEL_RPM_ARCH/kernel-core-$KERNEL_VERSION.rpm
         KOJI_KERNEL_CORE_RPM='https://kojihub.stream.centos.org/kojifiles/packages/kernel/6.12.0/219.el10/x86_64/kernel-core-6.12.0-219.el10.x86_64.rpm'
-        if ! dnf -q -y download $KOJI_KERNEL_CORE_RPM; then
+        if ! curl -fSsL -O "$KOJI_KERNEL_CORE_RPM"; then
             echo "Can't find kernel-core-${KERNEL_VERSION}"
             echo "Please try to update your kernel on the host system."
             exit 1
@@ -137,8 +137,7 @@ _install_prerequisites() (
         echo "Trying to download kernel-modules-core from koji..."
 #        KOJI_KERNEL_CORE_RPM=$KOJI_BASE_URL/packages/kernel/$KERNEL_RPM_VERSION/$KERNEL_RPM_RELEASE/$KERNEL_RPM_ARCH/kernel-modules-core-$KERNEL_VERSION.rpm
         KOJI_KERNEL_CORE_RPM='https://kojihub.stream.centos.org/kojifiles/packages/kernel/6.12.0/219.el10/x86_64/kernel-modules-core-6.12.0-219.el10.x86_64.rpm'
-        if ! dnf -q -y download $KOJI_KERNEL_CORE_RPM \
-          --setopt=install_weak_deps=False; then
+        if ! curl -fSsL -O "$KOJI_KERNEL_CORE_RPM"; then
             echo "Can't find kernel-modules-core-${KERNEL_VERSION}"
             echo "Please try to update your kernel on the host system."
             exit 1
